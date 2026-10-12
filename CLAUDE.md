@@ -199,6 +199,38 @@ or (c) a custom opcode that takes the whole 1024 bytes at once.
    bulk-bitmap opcode that does one erase + program.
 4. Set `POWER_ON_DISPLAY_MODE = LOGO` (write to physical `0x00A0AF`).
 
+### The original UV-K5 needs a different firmware AND a different flasher
+
+The DP32G030-vs-PY32F071 split that governs EEPROM addresses governs the
+*install* path too, and the two halves share nothing:
+
+| Hardware | Firmware source | Flasher | Install mode |
+|---|---|---|---|
+| UV-K5 / UV-K5(8), V1 & V2 (DP32G030) | [`briand/uv-k5-firmware-custom-cw`](https://github.com/briand/uv-k5-firmware-custom-cw/releases) (v1.2 latest as of 2026-10-12) | [egzumer's UVTools](https://egzumer.github.io/uvtools/) | Hold **PTT alone** while powering on |
+| UV-K1 Mini Kong, UV-K5(99) V3 (PY32F071) | `briand/uv-k1-k5v3-firmware-custom` (we host a build in `public/firmware/`) | [armel's UVTools2](https://armel.github.io/uvtools2/) | Hold **PTT alone** while powering on (K1 confirmed; V3 uncaptured) |
+
+The flashers are **not** interchangeable — different bootloaders. The
+firmware images are not interchangeable either.
+
+Source for the V1 row: user hardware knowledge, 2026-10-12. The releases
+page is deliberately linked rather than a pinned asset in the UI, because
+the fork ships new versions.
+
+UI: `app/FlashGuides.tsx` holds both guides, the chooser, and
+`flashPathForModels()`. `app/ToolWorkspace.tsx`'s `FlashTool` wires them
+together: default is the K1/V3 path (what the site shipped with), detection
+promotes the matching path on connect, a manual pick always wins.
+`flashPathForModels` deliberately returns `null` for a `uv-k6`-only or
+both-generation candidate list rather than guessing — K6 straddles the
+silicon split (see "UV-K6 is a marketing rename" below). `conflict` and
+`unknown` identifications don't auto-select either.
+
+**Not yet captured:** no version string for briand's CW fork on a K5 V1/V2
+is in `src/detection/registry.ts`, so after following the V1 path the app
+will likely report "firmware not recognized" and keep Program / Boot screen
+locked. The V1 guide says so on screen rather than promising the tools
+unlock. Adding the capture is the fix.
+
 ### Stock K1 has read-mapped, write-protected regions
 
 Distinct from "unmapped" above: stock K1 v7.03.01 maps `0x2E00`
