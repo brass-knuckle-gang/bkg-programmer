@@ -43,7 +43,7 @@ export function Hub({
     ? { chip: { label: "do this first", tone: "required" }, primary: true }
     : connected && fwKind === "matched"
       ? { chip: { label: "already installed", tone: "ok" } }
-      : { chip: { label: "uses UVTools2", tone: "warn" } };
+      : { chip: { label: "uses a separate tool", tone: "warn" } };
 
   // Connection is NOT a gate. The user can open these tools while
   // disconnected and connect from inside, just before they make changes.
@@ -87,7 +87,7 @@ export function Hub({
         <Tile
           num="01"
           name="Install firmware"
-          desc="Install custom firmware (like NR7Y) using a separate tool called UVTools2. The other two tools only work once custom firmware is installed — the factory firmware won't let them make changes."
+          desc="Install custom firmware (like NR7Y) using a separate installer — which one depends on your radio. The other two tools only work once custom firmware is installed — the factory firmware won't let them make changes."
           status={flashStatus}
           onSelect={() => onSelect("flash")}
         />
@@ -156,8 +156,8 @@ function PowerOnModes() {
             <span className="mode-name">Install mode</span>
             <span className="mode-desc">
               Hold the PTT (push-to-talk) key while powering on. This is for
-              installing firmware with UVTools2. You won&rsquo;t use this mode
-              here directly.
+              installing firmware with a separate installer. You won&rsquo;t
+              use this mode here directly.
             </span>
           </span>
         </li>

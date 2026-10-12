@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { ToolId } from "./types";
 import { ConnectPanel } from "./ConnectPanel";
@@ -14,6 +15,14 @@ import { BackupPanel } from "./BackupPanel";
 import { SplashTestPanel } from "./SplashTestPanel";
 import { WelcomeStringsPanel } from "./WelcomeStringsPanel";
 import { SplashFlasherPanel } from "./SplashFlasherPanel";
+import {
+  FlashGuideK1V3,
+  FlashGuideK5V1,
+  FlashPathChooser,
+  flashPathForModels,
+} from "./FlashGuides";
+import type { FlashPath } from "./FlashGuides";
+import { radioCatalog } from "./radioCatalog";
 import { useSession } from "./SessionContext";
 import type { ConnState } from "./SessionContext";
 import { StepGroup } from "./ui";
@@ -33,8 +42,9 @@ const TOOL_META: Record<ToolId, ToolMeta> = {
     blurb: (
       <>
         This app can&rsquo;t install firmware itself — that&rsquo;s on purpose.
-        Use a separate tool called <strong>UVTools2</strong> with the steps
-        below, then come back here to set up your radio.
+        You&rsquo;ll use a separate installer; which one depends on your
+        radio. Pick your model below, follow the steps, then come back here
+        to set up your radio.
       </>
     ),
   },
@@ -291,6 +301,54 @@ function ConnectPrompt({ lead }: { lead: string }) {
 
 function FlashTool() {
   const { state } = useSession();
+
+  // Only the identifications that actually name models feed the default.
+  // `conflict` means the firmware fingerprint and the EEPROM model bytes
+  // disagree — exactly the case where guessing an install path is the
+  // wrong move — and `unknown` names nothing. Both leave the pick to the
+  // user. (See `RadioIdentity` in src/detection/detect.ts.)
+  const radio = state.kind === "connected" ? state.result.radio : null;
+  const detectedModels =
+    radio !== null &&
+    (radio.kind === "confirmed" ||
+      radio.kind === "inferred" ||
+      radio.kind === "ambiguous")
+      ? radio.models
+      : null;
+  const detectedPath = detectedModels
+    ? flashPathForModels(detectedModels)
+    : null;
+
+  // Default to the K1 / K5 V3 path — the flow this site shipped with and
+  // the firmware we host. Detection promotes the right path once a radio
+  // is connected, but a manual pick always wins: installing happens with
+  // the radio in bootloader mode (and often in another tab), so the user
+  // is frequently reading these steps with nothing connected.
+  const [path, setPath] = useState<FlashPath>("k1-v3");
+  const [userPicked, setUserPicked] = useState(false);
+
+  useEffect(() => {
+    if (!userPicked && detectedPath !== null) setPath(detectedPath);
+  }, [userPicked, detectedPath]);
+
+  const detectedNames = detectedModels
+    ? detectedModels.map((m) => radioCatalog[m].displayName).join(" / ")
+    : null;
+
+  // The note describes what is ON SCREEN, not what detection wanted. A
+  // manual pick overrides detection (userPicked), so saying "selected to
+  // match" unconditionally would affirm a match while showing the other
+  // generation's steps.
+  const mismatch = detectedPath !== null && detectedPath !== path;
+  const detectedNote =
+    detectedNames === null
+      ? undefined
+      : detectedPath === null
+        ? `Connected radio reports ${detectedNames} — we have no confirmed install path for that, so check it against the options above and pick one.`
+        : mismatch
+          ? `Heads up: the connected radio reports ${detectedNames}, which points at the other option. The steps below are for the one you picked.`
+          : `Connected radio reports ${detectedNames} — these steps are selected to match.`;
+
   const connectedToStock =
     state.kind === "connected" &&
     state.result.firmware.kind === "matched" &&
@@ -298,125 +356,22 @@ function FlashTool() {
 
   return (
     <>
-      {connectedToStock ? <StockFirmwareGuide /> : null}
+      <FlashPathChooser
+        value={path}
+        onChange={(next) => {
+          setUserPicked(true);
+          setPath(next);
+        }}
+        {...(detectedNote === undefined ? {} : { detectedNote })}
+        detectedWarn={mismatch}
+      />
 
-      <div className="flash-card">
-        <h2>Install custom firmware with UVTools2</h2>
-        <p style={{ marginTop: "var(--space-2)", color: "var(--fg-muted)" }}>
-          This app sets up your radio, but it doesn&rsquo;t install firmware.
-          For that, use a separate, free tool called{" "}
-          <a
-            href="https://armel.github.io/uvtools2/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            UVTools2
-          </a>
-          . Follow the steps below, then come back here.
-        </p>
+      {/* The stock-firmware walkthrough is written against the K1 / K5 V3
+          flow (UVTools2, the build we host). Suppress it on the V1 path so
+          a classic-K5 owner isn't handed the wrong links. */}
+      {connectedToStock && path === "k1-v3" ? <StockFirmwareGuide /> : null}
 
-        <ol className="flash-steps">
-          <li>
-            <div>
-              <h4>Choose firmware</h4>
-              <p>
-                The F4HWN family (Fusion, Edition, NR7Y) works on UV-K5 and
-                UV-K1 radios. If you want a custom logo on the boot screen,
-                use a build that supports it — the download below does.
-              </p>
-              <div className="firmware-download">
-                <div className="firmware-download-head">
-                  <strong>NR7Y CW (BKG build) — UV-K1</strong>
-                  <span className="firmware-download-meta">
-                    v1.1.0 · 87 KB
-                  </span>
-                </div>
-                <p className="firmware-download-blurb">
-                  F4HWN NR7Y CW preset built from{" "}
-                  <a
-                    href="https://github.com/briand/uv-k1-k5v3-firmware-custom"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    briand/uv-k1-k5v3-firmware-custom
-                  </a>{" "}
-                  with <code>ENABLE_FEAT_F4HWN_LOGO</code> and{" "}
-                  <code>ENABLE_FEAT_NR7Y_CW</code> on. Enables the bitmap
-                  splash (Splash tool) and the full CW keyer block this
-                  programmer's Quick CW Setup writes to (menus 71/72/73).
-                  Targets UV-K1 Mini Kong; the same image runs on
-                  UV-K5-V3 (firmware identifies as ambiguous —
-                  Quick CW Setup is gated to UV-K1 only for now).
-                </p>
-                <p className="firmware-download-blurb">
-                  <strong>v1.1.0 changes:</strong> CAT control over
-                  UART/VCP with USB status indicator; UART-safe escape
-                  hatches for the CW keyer PA10 conflict.{" "}
-                  <strong>Breaking:</strong> default CW paddle mapping
-                  is now TIP=dit, RING=dah (industry standard). If you
-                  had previously selected a &ldquo;Reversed&rdquo;
-                  key-input mode to compensate, switch to the
-                  non-reversed equivalent after flashing (and vice
-                  versa).
-                </p>
-                <a
-                  href="/firmware/nr7y.cw-bkg-logo.v1.1.0.bin"
-                  download
-                  className="firmware-download-btn"
-                >
-                  Download nr7y.cw-bkg-logo.v1.1.0.bin
-                </a>
-                <p className="firmware-download-hash">
-                  SHA256:{" "}
-                  <code>
-                    011fd156de29df6066e7388ee49b2b82a916fc071b86cb1f05f8048a712fe51b
-                  </code>
-                </p>
-              </div>
-            </div>
-          </li>
-          <li>
-            <div>
-              <h4>Put the radio in install mode</h4>
-              <p>
-                <strong>UV-K1 Mini Kong:</strong> hold the <strong>PTT</strong>{" "}
-                key by itself while powering on.{" "}
-                <strong>UV-K5:</strong> hold <strong>PTT and the top side
-                button</strong> while powering on. (On the K1, adding the side
-                button opens a different hidden menu instead — PTT alone.)
-              </p>
-            </div>
-          </li>
-          <li>
-            <div>
-              <h4>Install it with UVTools2</h4>
-              <p>
-                In UVTools2, open the firmware file you downloaded, pick the
-                radio&rsquo;s port, and start the install. Wait for the radio
-                to restart on its own.
-              </p>
-            </div>
-          </li>
-          <li>
-            <div>
-              <h4>Come back and reconnect</h4>
-              <p>
-                Turn the radio off and back on normally, reconnect the cable,
-                and use the <em>connect radio</em> button in the bar above.
-                The Program and Boot screen tools unlock once the new firmware
-                is detected.
-              </p>
-            </div>
-          </li>
-        </ol>
-
-        <div className="callout">
-          <strong>Why is this needed?</strong> The factory firmware quietly
-          ignores changes to channels, settings, and the boot screen — it
-          accepts the request but nothing actually changes. Custom firmware
-          allows those changes.
-        </div>
-      </div>
+      {path === "k5-v1" ? <FlashGuideK5V1 /> : <FlashGuideK1V3 />}
     </>
   );
 }

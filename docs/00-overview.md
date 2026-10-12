@@ -10,9 +10,13 @@ and writes it back with safety checks.
 
 ## What this tool is NOT
 
-- **Not a firmware flasher.** Use [UVTools2](https://github.com/armel/uvtools2)
-  for that. Flashing is destructive; the existing tool is good; rebuilding it
-  for branding adds risk without value.
+- **Not a firmware flasher.** Use someone else's flasher — which one depends
+  on the silicon. [UVTools2](https://github.com/armel/uvtools2) for UV-K1 and
+  UV-K5(99) V3 (PY32F071); [egzumer's UVTools](https://egzumer.github.io/uvtools/)
+  for the original UV-K5 / UV-K5(8) V1 (DP32G030). Flashing is destructive;
+  the existing tools are good; rebuilding them for branding adds risk without
+  value. The in-app Install firmware tool branches on this split
+  (`app/FlashGuides.tsx`).
 - **Not a CHIRP replacement.** CHIRP handles channels for many radios; this
   tool focuses on the F4HWN-specific menu settings, calibration backup, and
   club-preset distribution that CHIRP doesn't cover.

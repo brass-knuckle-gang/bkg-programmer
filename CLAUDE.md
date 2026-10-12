@@ -199,6 +199,57 @@ or (c) a custom opcode that takes the whole 1024 bytes at once.
    bulk-bitmap opcode that does one erase + program.
 4. Set `POWER_ON_DISPLAY_MODE = LOGO` (write to physical `0x00A0AF`).
 
+### The original UV-K5 needs a different firmware AND a different flasher
+
+The DP32G030-vs-PY32F071 split that governs EEPROM addresses governs the
+*install* path too, and the two halves share nothing:
+
+| Hardware | Firmware source | Flasher | Install mode |
+|---|---|---|---|
+| UV-K5 / UV-K5(8) V1 (DP32G030) | [`briand/uv-k5-firmware-custom-cw`](https://github.com/briand/uv-k5-firmware-custom-cw/releases) (v1.2 latest as of 2026-10-12) | [egzumer's UVTools](https://egzumer.github.io/uvtools/) | Hold **PTT alone** while powering on |
+| UV-K1 Mini Kong, UV-K5(99) V3 (PY32F071) | `briand/uv-k1-k5v3-firmware-custom` (we host a build in `public/firmware/`) | [armel's UVTools2](https://armel.github.io/uvtools2/) | Hold **PTT alone** while powering on (K1 confirmed; V3 uncaptured) |
+
+The flashers are **not** interchangeable — different bootloaders. The
+firmware images are not interchangeable either.
+
+Source for the V1 row: user hardware knowledge, 2026-10-12 — tested on a
+V1. The releases page is deliberately linked rather than a pinned asset in
+the UI, because the fork ships new versions.
+
+**V2 is deliberately absent.** It is almost certainly the same DP32G030
+class and almost certainly takes the same firmware and flasher, but nobody
+has run these steps on one, so neither the copy nor
+`flashPathForModels()` says so. A connected `uv-k5-v2` gets no
+auto-selection and is told to pick a path itself. Validate on V2 hardware
+before adding it back.
+
+UI: `app/FlashGuides.tsx` holds both guides, the chooser, and
+`flashPathForModels()`. `app/ToolWorkspace.tsx`'s `FlashTool` wires them
+together: default is the K1/V3 path (what the site shipped with), detection
+promotes the matching path on connect, a manual pick always wins.
+`flashPathForModels` requires EVERY candidate to agree, not just one.
+The registry hands over whole candidate sets, so a `.some()` test would
+pick a path off one recognised member while the UI printed the rest of
+the set beside "selected to match" — `f4hwn-v1` carries
+`['uv-k5-v1', 'uv-k5-v2', 'uv-k6']`, so matching on `uv-k5-v1` alone
+asserts the V1 steps suit a V2. `uv-k6` is dropped before the check
+rather than disqualifying: inside a firmware's candidate list it is a
+name, not a silicon claim (the fingerprint already pins the silicon),
+which is all the "UV-K6 is a marketing rename" note below ever added it
+for. `conflict` and `unknown` identifications don't auto-select either.
+
+Current outcomes: `f4hwn-nr7y-fusion` and `uv-k1-stock-7x` auto-select
+`k1-v3`; `f4hwn-v1` and `ijv-k5-v1` auto-select nothing, because
+`uv-k5-v2` sits in their sets. Validating V2 and adding it to
+`PATH_BY_MODEL` is what restores auto-selection for the classic-K5
+firmwares.
+
+**Not yet captured:** no version string for briand's CW fork on a K5 V1
+is in `src/detection/registry.ts`, so after following the V1 path the app
+will likely report "firmware not recognized" and keep Program / Boot screen
+locked. The V1 guide says so on screen rather than promising the tools
+unlock. Adding the capture is the fix.
+
 ### Stock K1 has read-mapped, write-protected regions
 
 Distinct from "unmapped" above: stock K1 v7.03.01 maps `0x2E00`
