@@ -47,29 +47,60 @@ export const FLASH_PATHS: ReadonlyArray<{
   },
 ];
 
+/** Models whose install path is settled. Anything absent disqualifies. */
+const PATH_BY_MODEL: Partial<Record<RadioModelId, FlashPath>> = {
+  "uv-k5-v1": "k5-v1",
+  "uv-k5-v3": "k1-v3",
+  "uv-k1": "k1-v3",
+  // "uv-k5-v2" is absent on purpose — see the note above.
+};
+
 /**
  * Which install path a detected radio implies, or null when the detection
- * doesn't settle it. Returning null matters: a K6-only or both-generation
- * candidate list must leave the choice with the user rather than guess.
+ * doesn't settle it.
+ *
+ * EVERY candidate must agree, not just one of them. The registry hands us
+ * whole candidate sets, and a `.some()` test would pick a path off one
+ * recognised member while the UI printed the rest of the set beside
+ * "selected to match" — `f4hwn-v1` carries
+ * `['uv-k5-v1', 'uv-k5-v2', 'uv-k6']`, so matching on `uv-k5-v1` alone
+ * would assert the V1 steps suit a V2.
+ *
+ * `uv-k6` is dropped before the check rather than disqualifying: within a
+ * firmware's candidate list it is a name, not a silicon claim. The
+ * fingerprint already pins the silicon (NR7Y only runs on PY32F071), and
+ * CLAUDE.md's "UV-K6 is a marketing rename" note says K6 was added to
+ * these lists purely so the UI can surface the name. An empty remainder
+ * still returns null.
  */
 export function flashPathForModels(
   models: ReadonlyArray<RadioModelId>,
 ): FlashPath | null {
-  const isV1Class = models.some((m) => m === "uv-k5-v1");
-  const isV3Class = models.some((m) => m === "uv-k5-v3" || m === "uv-k1");
-  if (isV1Class && !isV3Class) return "k5-v1";
-  if (isV3Class && !isV1Class) return "k1-v3";
-  return null;
+  const settled = models.filter((m) => m !== "uv-k6");
+  if (settled.length === 0) return null;
+
+  let agreed: FlashPath | null = null;
+  for (const model of settled) {
+    const path = PATH_BY_MODEL[model];
+    if (path === undefined) return null;
+    if (agreed === null) agreed = path;
+    else if (agreed !== path) return null;
+  }
+  return agreed;
 }
 
 export function FlashPathChooser({
   value,
   onChange,
   detectedNote,
+  detectedWarn = false,
 }: {
   value: FlashPath;
   onChange: (next: FlashPath) => void;
   detectedNote?: ReactNode;
+  /** Renders the note in the warning hue — used when the manual pick
+   *  disagrees with what the connected radio reported. */
+  detectedWarn?: boolean;
 }) {
   return (
     <section className="hw-path">
@@ -101,7 +132,17 @@ export function FlashPathChooser({
           </button>
         ))}
       </div>
-      {detectedNote ? <p className="hw-path-detected">{detectedNote}</p> : null}
+      {detectedNote ? (
+        <p
+          className={
+            detectedWarn
+              ? "hw-path-detected is-warn"
+              : "hw-path-detected"
+          }
+        >
+          {detectedNote}
+        </p>
+      ) : null}
     </section>
   );
 }

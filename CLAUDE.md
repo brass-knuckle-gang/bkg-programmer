@@ -227,11 +227,22 @@ UI: `app/FlashGuides.tsx` holds both guides, the chooser, and
 `flashPathForModels()`. `app/ToolWorkspace.tsx`'s `FlashTool` wires them
 together: default is the K1/V3 path (what the site shipped with), detection
 promotes the matching path on connect, a manual pick always wins.
-`flashPathForModels` only maps `uv-k5-v1` onto the V1 path; `uv-k5-v2`
-(unvalidated, above) and `uv-k6` (straddles the silicon split — see
-"UV-K6 is a marketing rename" below) deliberately return `null` rather
-than guessing. `conflict` and `unknown` identifications don't
-auto-select either.
+`flashPathForModels` requires EVERY candidate to agree, not just one.
+The registry hands over whole candidate sets, so a `.some()` test would
+pick a path off one recognised member while the UI printed the rest of
+the set beside "selected to match" — `f4hwn-v1` carries
+`['uv-k5-v1', 'uv-k5-v2', 'uv-k6']`, so matching on `uv-k5-v1` alone
+asserts the V1 steps suit a V2. `uv-k6` is dropped before the check
+rather than disqualifying: inside a firmware's candidate list it is a
+name, not a silicon claim (the fingerprint already pins the silicon),
+which is all the "UV-K6 is a marketing rename" note below ever added it
+for. `conflict` and `unknown` identifications don't auto-select either.
+
+Current outcomes: `f4hwn-nr7y-fusion` and `uv-k1-stock-7x` auto-select
+`k1-v3`; `f4hwn-v1` and `ijv-k5-v1` auto-select nothing, because
+`uv-k5-v2` sits in their sets. Validating V2 and adding it to
+`PATH_BY_MODEL` is what restores auto-selection for the classic-K5
+firmwares.
 
 **Not yet captured:** no version string for briand's CW fork on a K5 V1
 is in `src/detection/registry.ts`, so after following the V1 path the app

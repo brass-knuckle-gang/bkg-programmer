@@ -625,6 +625,8 @@ hr {
   color: var(--fg-subtle);
   line-height: 1.5;
 }
+/* Manual pick disagrees with what the radio reported. */
+.hw-path-detected.is-warn { color: var(--warn); }
 
 /* Flash-firmware tool — an entirely documentation-driven view. */
 .flash-card {

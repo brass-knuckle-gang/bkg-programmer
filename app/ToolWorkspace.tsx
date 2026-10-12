@@ -334,12 +334,20 @@ function FlashTool() {
   const detectedNames = detectedModels
     ? detectedModels.map((m) => radioCatalog[m].displayName).join(" / ")
     : null;
+
+  // The note describes what is ON SCREEN, not what detection wanted. A
+  // manual pick overrides detection (userPicked), so saying "selected to
+  // match" unconditionally would affirm a match while showing the other
+  // generation's steps.
+  const mismatch = detectedPath !== null && detectedPath !== path;
   const detectedNote =
     detectedNames === null
       ? undefined
-      : detectedPath !== null
-        ? `Connected radio reports ${detectedNames} — these steps are selected to match.`
-        : `Connected radio reports ${detectedNames} — we have no confirmed install path for that, so check it against the options above and pick one.`;
+      : detectedPath === null
+        ? `Connected radio reports ${detectedNames} — we have no confirmed install path for that, so check it against the options above and pick one.`
+        : mismatch
+          ? `Heads up: the connected radio reports ${detectedNames}, which points at the other option. The steps below are for the one you picked.`
+          : `Connected radio reports ${detectedNames} — these steps are selected to match.`;
 
   const connectedToStock =
     state.kind === "connected" &&
@@ -355,6 +363,7 @@ function FlashTool() {
           setPath(next);
         }}
         {...(detectedNote === undefined ? {} : { detectedNote })}
+        detectedWarn={mismatch}
       />
 
       {/* The stock-firmware walkthrough is written against the K1 / K5 V3
