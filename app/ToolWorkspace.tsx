@@ -339,7 +339,7 @@ function FlashTool() {
       ? undefined
       : detectedPath !== null
         ? `Connected radio reports ${detectedNames} — these steps are selected to match.`
-        : `Connected radio reports ${detectedNames}, which spans both generations. Check the charging port and screen against the options above and pick one.`;
+        : `Connected radio reports ${detectedNames} — we have no confirmed install path for that, so check it against the options above and pick one.`;
 
   const connectedToStock =
     state.kind === "connected" &&

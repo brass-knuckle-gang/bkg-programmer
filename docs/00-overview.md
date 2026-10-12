@@ -13,7 +13,7 @@ and writes it back with safety checks.
 - **Not a firmware flasher.** Use someone else's flasher — which one depends
   on the silicon. [UVTools2](https://github.com/armel/uvtools2) for UV-K1 and
   UV-K5(99) V3 (PY32F071); [egzumer's UVTools](https://egzumer.github.io/uvtools/)
-  for the original UV-K5 / UV-K5(8) V1/V2 (DP32G030). Flashing is destructive;
+  for the original UV-K5 / UV-K5(8) V1 (DP32G030). Flashing is destructive;
   the existing tools are good; rebuilding them for branding adds risk without
   value. The in-app Install firmware tool branches on this split
   (`app/FlashGuides.tsx`).

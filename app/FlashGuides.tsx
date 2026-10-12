@@ -9,7 +9,7 @@ import type { RadioModelId } from "../src/schema/types";
  * The two generations in scope need *different firmware and a different
  * installer*, and neither is interchangeable:
  *
- *   - `k5-v1` — the original UV-K5 / UV-K5(8), DP32G030 silicon. Firmware
+ *   - `k5-v1` — the original UV-K5 / UV-K5(8) V1, DP32G030 silicon. Firmware
  *     from briand/uv-k5-firmware-custom-cw, installed with egzumer's
  *     UVTools (https://egzumer.github.io/uvtools/).
  *   - `k1-v3` — UV-K1 Mini Kong and UV-K5(99) V3, PY32F071 silicon.
@@ -18,10 +18,15 @@ import type { RadioModelId } from "../src/schema/types";
  *
  * The DP32G030-vs-PY32F071 split is the same one the schema encodes as
  * `uv-k5-v1`/`uv-k5-v2` vs `uv-k5-v3`/`uv-k1` (see CLAUDE.md, "F4HWN
- * settings address differs by hardware"). UV-K6 straddles it — K6 is a
- * marketing rename of UV-K5(8) and lands in whichever bucket its silicon
- * revision puts it in, so we never auto-pick a path from a K6-only
- * identification.
+ * settings address differs by hardware").
+ *
+ * Only `uv-k5-v1` maps onto the `k5-v1` path, because V1 is the only
+ * revision the steps have been run against. `uv-k5-v2` is almost
+ * certainly the same silicon class, but "almost certainly" isn't a
+ * citation — an unvalidated V2 gets no auto-selection and no claim in
+ * the copy. `uv-k6` is out for a different reason: K6 is a marketing
+ * rename of UV-K5(8) and lands in whichever bucket its silicon revision
+ * puts it in. Both fall through to "pick one yourself".
  */
 export type FlashPath = "k5-v1" | "k1-v3";
 
@@ -32,7 +37,7 @@ export const FLASH_PATHS: ReadonlyArray<{
 }> = [
   {
     id: "k5-v1",
-    name: "UV-K5 / UV-K5(8) — V1 or V2",
+    name: "UV-K5 / UV-K5(8) — V1",
     sub: "The original K5. Monochrome screen. Slim body, no “Mini Kong” badge.",
   },
   {
@@ -50,7 +55,7 @@ export const FLASH_PATHS: ReadonlyArray<{
 export function flashPathForModels(
   models: ReadonlyArray<RadioModelId>,
 ): FlashPath | null {
-  const isV1Class = models.some((m) => m === "uv-k5-v1" || m === "uv-k5-v2");
+  const isV1Class = models.some((m) => m === "uv-k5-v1");
   const isV3Class = models.some((m) => m === "uv-k5-v3" || m === "uv-k1");
   if (isV1Class && !isV3Class) return "k5-v1";
   if (isV3Class && !isV1Class) return "k1-v3";
@@ -102,7 +107,7 @@ export function FlashPathChooser({
 }
 
 /**
- * Original UV-K5 / UV-K5(8) (V1, V2) install guide.
+ * Original UV-K5 / UV-K5(8) V1 install guide.
  *
  * Deliberately links the *releases page* rather than a pinned asset: the
  * fork ships new versions and a hardcoded filename here would rot into a
@@ -157,7 +162,7 @@ export function FlashGuideK5V1() {
             </p>
             <p>
               Don&rsquo;t use the K1 build we host on this site. It targets
-              different silicon and won&rsquo;t run on a V1/V2 K5.
+              different silicon and won&rsquo;t run on the original K5.
             </p>
           </div>
         </li>
@@ -208,7 +213,7 @@ export function FlashGuideK5V1() {
       <div className="callout">
         <strong>We haven&rsquo;t captured this build yet.</strong>{" "}
         This app recognises firmware by the version string the radio reports, and
-        we have no capture for briand&rsquo;s CW fork on a K5 V1/V2. After
+        we have no capture for briand&rsquo;s CW fork on a K5 V1. After
         installing, this app may say{" "}
         <em>&ldquo;firmware not recognized&rdquo;</em>{" "}
         and keep the Program and
