@@ -1,9 +1,14 @@
 import type { BlockModuleDef } from '../types';
 
 /**
- * NR7Y CW-modulator settings block. 8 bytes.
+ * NR7Y CW-modulator settings block, v1.0-v1.1 layout. 8 bytes.
  *
- * Verified against briand/uv-k1-k5v3-firmware-custom (NR7Y CW preset):
+ * Later releases changed this block: v1.2 moved keyer mode into byte 4
+ * (App/settings.c:367-377 at tag v1.2), and v1.4 repacked it again —
+ * see nr7y-cw-settings-v14.ts, which replaces this module by ID in the
+ * v1.4 profile. v1.2-v1.3.1 have no module of their own yet.
+ *
+ * Verified against briand/uv-k1-k5v3-firmware-custom v1.0.0 (NR7Y CW preset):
  *   App/settings.c:358-369  (READ path)
  *   App/settings.c:1065-1081 (WRITE path)
  * Cross-checked with chirp/fusion.nr7y.chirp.v1.0.py:740 which uses the

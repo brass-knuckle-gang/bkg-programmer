@@ -124,6 +124,36 @@ non-port-ground mode), save, then power-cycle normally.
 Source: `App/app/cwkeyer.c`, `App/main.c` in briand fork commit
 `f2dca450`.
 
+### NR7Y's CW settings block (0xA140) has had three layouts
+
+The 8-byte CW block at virtual `0xA140` changed shape twice in four
+minor releases. Same address, same module ID (`nr7y_cw_settings`), and
+different bits:
+
+| Releases | Layout | Module |
+|---|---|---|
+| v1.0.0 – v1.1 | keyer mode A/B in byte 1 bit 7, WPM 10–40, key input 0–7 | `nr7y-cw-settings.ts` |
+| v1.2 – v1.3.1 | keyer mode (A/B/Ultimatic/Bug) is the whole of byte 4; byte 1 bit 7 ignored; WPM 10–45, key input 0–10 | **none yet** |
+| v1.4 | byte 4 = keyer mode bits 0–1 + Farnsworth speed bits 2–7; roger dah in byte 5; hang time in byte 7; auto spacing byte 2 bit 5; sidetone is a 4-bit *code* in byte 0 (`settings.c:56-59` table), not the level | `nr7y-cw-settings-v14.ts` |
+
+Registry routing: `NR7Y v1.4` / `v1.4.x` → profile `uv-k1-f4hwn-nr7y-v14`,
+which is the base NR7Y module list with the v1.4 block appended last
+(replaces by ID). Everything else NR7Y still hits the catch-all and gets
+the v1.0 module, so on v1.2–v1.3.1 a keyer-mode write is verified on
+readback but ignored by the firmware.
+
+v1.4 trap: byte 4 has no validity bit. A Farnsworth value outside
+{0, 5..44} makes the firmware discard the byte, keyer mode included
+(`settings.c:425-433`). A radio upgraded from v1.1 still holds 0xFF
+there until it saves settings. Quick CW Setup writes Farnsworth = Off
+alongside keyer mode in that case, as the CHIRP driver does.
+
+Before trusting either module on a new release, diff the CW read and
+write paths across tags:
+`git show <tag>:App/settings.c | grep -n -A30 'ReadBuffer(0x00A140'`.
+The in-tree CHIRP driver (`chirp/nr7y.k1-k5v3.chirp.py` from v1.3 on)
+mirrors the layout and is a quick cross-check.
+
 ### K1+briand: welcome strings + display-mode live at PHYSICAL addresses, not V1-style logical ones
 
 The naive port of F4HWN's V1 welcome code uses logical addresses
@@ -207,7 +237,7 @@ The DP32G030-vs-PY32F071 split that governs EEPROM addresses governs the
 | Hardware | Firmware source | Flasher | Install mode |
 |---|---|---|---|
 | UV-K5 / UV-K5(8) V1 (DP32G030) | [`briand/uv-k5-firmware-custom-cw`](https://github.com/briand/uv-k5-firmware-custom-cw/releases) (v1.2 latest as of 2026-10-12) | [egzumer's UVTools](https://egzumer.github.io/uvtools/) | Hold **PTT alone** while powering on |
-| UV-K1 Mini Kong, UV-K5(99) V3 (PY32F071) | `briand/uv-k1-k5v3-firmware-custom` (we host a build in `public/firmware/`) | [armel's UVTools2](https://armel.github.io/uvtools2/) | Hold **PTT alone** while powering on (K1 confirmed; V3 uncaptured) |
+| UV-K1 Mini Kong, UV-K5(99) V3 (PY32F071) | [`briand/uv-k1-k5v3-firmware-custom`](https://github.com/briand/uv-k1-k5v3-firmware-custom/releases/latest) (v1.4 latest as of 2026-10-16; first release with boot-logo support) | [armel's UVTools2](https://armel.github.io/uvtools2/) | Hold **PTT alone** while powering on (K1 confirmed; V3 uncaptured) |
 
 The flashers are **not** interchangeable — different bootloaders. The
 firmware images are not interchangeable either.
@@ -477,9 +507,19 @@ Don't guess at them; capture from real radios.
      virtual 0xC008 still land in physical 0x011000 (sector 17) just
      fine (verified empirically 2026-05-25), but the bytes are never
      drawn. To get a working bitmap splash, the firmware must be
-     rebuilt with `-DENABLE_FEAT_F4HWN_LOGO=ON`. `bkg-programmer`
-     hosts a pre-built such firmware in `public/firmware/` (see
-     `docs/plans/2026-05-25-bitmap-splash-phases.md`).
+     rebuilt with `-DENABLE_FEAT_F4HWN_LOGO=ON`.
+
+     **Fixed upstream in briand v1.4** (released 2026-10-15): the CW
+     preset in `CMakePresets.json` now sets
+     `ENABLE_FEAT_F4HWN_LOGO: true` (release notes: "Boot logo feature
+     enabled, fixes #41"). `bkg-programmer` used to host its own LOGO
+     build in `public/firmware/` (see
+     `docs/plans/2026-05-25-bitmap-splash-phases.md`); it was removed
+     2026-10-16 and the UI now links
+     `briand/uv-k1-k5v3-firmware-custom/releases/latest` instead.
+     v1.4 reports `NR7Y v1.4` (`App/version.c`, `AUTHOR_STRING_2 " "
+     VERSION_STRING_2`, tag passed in by `.github/workflows/main.yml`),
+     which the `/^NR7Y\b/i` registry pattern matches.
    - **Stock UV-K5 V1/V2**, **egzumer**, **F4HWN-on-K5-V1**: still
      need real captures.
 

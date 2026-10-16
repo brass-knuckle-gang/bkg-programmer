@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "./SessionContext";
+import { isNr7yProfile } from "./profileLookup";
 import { TechDetails } from "./ui";
 
 // On K1+briand (and NR7Y, which is built on top), the firmware does NOT use
@@ -97,8 +98,13 @@ export function WelcomeStringsPanel() {
       : undefined;
 
   // Show on any F4HWN-based profile; the welcome addresses are the same.
-  const visibleProfiles = new Set(["uv-k1-f4hwn-nr7y", "uv-k5-v1-f4hwn"]);
-  if (!connected || !profileId || !visibleProfiles.has(profileId)) return null;
+  if (
+    !connected ||
+    !profileId ||
+    !(profileId === "uv-k5-v1-f4hwn" || isNr7yProfile(profileId))
+  ) {
+    return null;
+  }
 
   async function runStep(fn: () => Promise<void>) {
     setBusy(true);

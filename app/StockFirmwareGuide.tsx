@@ -68,13 +68,13 @@ export function StockFirmwareGuide() {
           <strong>Flash custom firmware with UVTools2.</strong>
           <ol type="a" style={{ marginTop: 6, paddingLeft: 20 }}>
             <li>
-              Download a firmware <code>.bin</code> from{" "}
+              Download the firmware <code>.bin</code> from{" "}
               <a
-                href="https://github.com/briand/uv-k1-k5v3-firmware-custom/releases"
+                href="https://github.com/briand/uv-k1-k5v3-firmware-custom/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                briand's release page
+                briand's latest release
               </a>{" "}
               (a K1-tuned fork of F4HWN Fusion).
             </li>

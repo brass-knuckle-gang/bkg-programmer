@@ -60,6 +60,15 @@ export function isProfileTentative(profile: Profile): boolean {
   );
 }
 
+/**
+ * True for every NR7Y profile. There is one per CW-block layout, all on the
+ * same K1 / K5 V3 virtual EEPROM map, so tools keyed to that map (boot logo,
+ * welcome strings) apply to each of them.
+ */
+export function isNr7yProfile(profileId: ProfileId): boolean {
+  return findProfile(profileId)?.appliesTo.firmwareFamily === "f4hwn-nr7y";
+}
+
 export function resolveProfileById(profileId: ProfileId): ResolvedProfile | null {
   const profile = findProfile(profileId);
   if (!profile) return null;

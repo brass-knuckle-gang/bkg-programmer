@@ -13,8 +13,8 @@ import type { RadioModelId } from "../src/schema/types";
  *     from briand/uv-k5-firmware-custom-cw, installed with egzumer's
  *     UVTools (https://egzumer.github.io/uvtools/).
  *   - `k1-v3` — UV-K1 Mini Kong and UV-K5(99) V3, PY32F071 silicon.
- *     Firmware from briand/uv-k1-k5v3-firmware-custom (we host a build),
- *     installed with armel's UVTools2.
+ *     Firmware from briand/uv-k1-k5v3-firmware-custom (linked to its
+ *     latest GitHub release), installed with armel's UVTools2.
  *
  * The DP32G030-vs-PY32F071 split is the same one the schema encodes as
  * `uv-k5-v1`/`uv-k5-v2` vs `uv-k5-v3`/`uv-k1` (see CLAUDE.md, "F4HWN
@@ -202,7 +202,8 @@ export function FlashGuideK5V1() {
               that exact version.
             </p>
             <p>
-              Don&rsquo;t use the K1 build we host on this site. It targets
+              Don&rsquo;t use the K1 / K5&nbsp;V3 build from{" "}
+              <code>briand/uv-k1-k5v3-firmware-custom</code>. It targets
               different silicon and won&rsquo;t run on the original K5.
             </p>
           </div>
@@ -303,57 +304,36 @@ export function FlashGuideK1V3() {
             <p>
               The F4HWN family (Fusion, Edition, NR7Y) works on UV-K5 and
               UV-K1 radios. If you want a custom logo on the boot screen,
-              use a build that supports it — the download below does.
+              use a build that supports it — NR7Y CW releases do from v1.4
+              on.
             </p>
             <div className="firmware-download">
               <div className="firmware-download-head">
-                <strong>NR7Y CW (BKG build) — UV-K1</strong>
+                <strong>NR7Y CW — UV-K1 / UV-K5 V3</strong>
                 <span className="firmware-download-meta">
-                  v1.1.0 · 87 KB
+                  briand/uv-k1-k5v3-firmware-custom
                 </span>
               </div>
               <p className="firmware-download-blurb">
-                F4HWN NR7Y CW preset built from{" "}
-                <a
-                  href="https://github.com/briand/uv-k1-k5v3-firmware-custom"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  briand/uv-k1-k5v3-firmware-custom
-                </a>{" "}
-                with <code>ENABLE_FEAT_F4HWN_LOGO</code> and{" "}
-                <code>ENABLE_FEAT_NR7Y_CW</code> on. Enables the bitmap
-                splash (Splash tool) and the full CW keyer block this
-                programmer's Quick CW Setup writes to (menus 71/72/73).
-                Targets UV-K1 Mini Kong; the same image runs on
-                UV-K5-V3 (firmware identifies as ambiguous —
-                Quick CW Setup is gated to UV-K1 only for now).
+                F4HWN Fusion with the NR7Y CW keyer. Release builds have{" "}
+                <code>ENABLE_FEAT_F4HWN_LOGO</code> on from v1.4, which the
+                bitmap splash (Splash tool) needs. Targets UV-K1 Mini Kong;
+                the same image runs on UV-K5 V3 (firmware identifies as
+                ambiguous — Quick CW Setup is gated to UV-K1 only for now).
               </p>
               <p className="firmware-download-blurb">
-                <strong>v1.1.0 changes:</strong> CAT control over
-                UART/VCP with USB status indicator; UART-safe escape
-                hatches for the CW keyer PA10 conflict.{" "}
-                <strong>Breaking:</strong>{" "}
-                default CW paddle mapping
-                is now TIP=dit, RING=dah (industry standard). If you
-                had previously selected a &ldquo;Reversed&rdquo;
-                key-input mode to compensate, switch to the
-                non-reversed equivalent after flashing (and vice
-                versa).
+                Download the <code>.bin</code> from the latest release, and
+                read its notes before upgrading — they list settings that
+                change meaning between versions.
               </p>
               <a
-                href="/firmware/nr7y.cw-bkg-logo.v1.1.0.bin"
-                download
+                href="https://github.com/briand/uv-k1-k5v3-firmware-custom/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="firmware-download-btn"
               >
-                Download nr7y.cw-bkg-logo.v1.1.0.bin
+                Latest release on GitHub
               </a>
-              <p className="firmware-download-hash">
-                SHA256:{" "}
-                <code>
-                  011fd156de29df6066e7388ee49b2b82a916fc071b86cb1f05f8048a712fe51b
-                </code>
-              </p>
             </div>
           </div>
         </li>
