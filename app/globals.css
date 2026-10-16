@@ -719,15 +719,6 @@ hr {
   background: var(--surface-hover, var(--surface));
   border-color: var(--fg-subtle);
 }
-.firmware-download-hash {
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--fg-subtle);
-  word-break: break-all;
-}
-.firmware-download-hash code {
-  font-size: var(--text-xs);
-}
 
 /* ========================================================================
  * Shared panel primitives (app/ui.tsx)

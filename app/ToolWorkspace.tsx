@@ -320,7 +320,7 @@ function FlashTool() {
     : null;
 
   // Default to the K1 / K5 V3 path — the flow this site shipped with and
-  // the firmware we host. Detection promotes the right path once a radio
+  // the firmware the splash tool targets. Detection promotes the right path once a radio
   // is connected, but a manual pick always wins: installing happens with
   // the radio in bootloader mode (and often in another tab), so the user
   // is frequently reading these steps with nothing connected.
@@ -367,7 +367,7 @@ function FlashTool() {
       />
 
       {/* The stock-firmware walkthrough is written against the K1 / K5 V3
-          flow (UVTools2, the build we host). Suppress it on the V1 path so
+          flow (UVTools2, briand's K1 / K5 V3 releases). Suppress it on the V1 path so
           a classic-K5 owner isn't handed the wrong links. */}
       {connectedToStock && path === "k1-v3" ? <StockFirmwareGuide /> : null}
 

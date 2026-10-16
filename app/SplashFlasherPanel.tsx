@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "./SessionContext";
+import { isNr7yProfile } from "./profileLookup";
 import { TechDetails } from "./ui";
 import {
   PIXEL_BYTES,
@@ -168,7 +169,7 @@ export function SplashFlasherPanel() {
       ? state.result.firmware.entry.profileId
       : undefined;
 
-  if (!connected || profileId !== "uv-k1-f4hwn-nr7y") return null;
+  if (!connected || !profileId || !isNr7yProfile(profileId)) return null;
 
   async function runStep(fn: () => Promise<void>) {
     setBusy(true);
@@ -353,7 +354,7 @@ export function SplashFlasherPanel() {
     pushLog(
       `Reported: splash UNCHANGED. Possibilities: ` +
         `(a) wrong polarity — try the invert toggle and re-flash; ` +
-        `(b) firmware build doesn't have ENABLE_FEAT_F4HWN_LOGO compiled in (check version string vs NR7Y v1.0.0+); ` +
+        `(b) firmware build doesn't have ENABLE_FEAT_F4HWN_LOGO compiled in (NR7Y release builds have it from v1.4; check the version string); ` +
         `(c) mode byte didn't actually take (read back 0x00A0AF and check it equals 0x04).`,
     );
   }

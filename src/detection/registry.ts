@@ -32,6 +32,27 @@ export interface FirmwareEntry {
 
 export const firmwareRegistry: ReadonlyArray<FirmwareEntry> = [
   {
+    id: 'f4hwn-nr7y-v14',
+    family: 'f4hwn-nr7y',
+    displayName: 'F4HWN Fusion (NR7Y fork) v1.4 for UV-K1 / UV-K5 V3',
+    // App/version.c builds Version as AUTHOR_STRING_2 " " VERSION_STRING_2
+    // and the release workflow passes the tag as VERSION_STRING_2
+    // (.github/workflows/main.yml:25), so the v1.4 release reports
+    // "NR7Y v1.4". Patch releases are assumed to keep the v1.4 CW block
+    // layout, as the v1.2.x and v1.3.x patches kept theirs; split this
+    // entry if one doesn't. Must stay above the catch-all NR7Y entry.
+    versionStringPatterns: [/^NR7Y v1\.4(?:\.\d+)?$/i],
+    candidateModels: ['uv-k1', 'uv-k5-v3', 'uv-k6'],
+    profileId: 'uv-k1-f4hwn-nr7y-v14',
+    // Same virtual EEPROM mapping as below: no model identifier string.
+    modelBytesPreserved: false,
+    source: { repo: 'briand/uv-k1-k5v3-firmware-custom' },
+    notes:
+      'Version string derived from the v1.4 build config, not yet captured ' +
+      'from a radio. Profile differs from uv-k1-f4hwn-nr7y only in the CW ' +
+      'settings block at 0xA140, which v1.4 repacked.',
+  },
+  {
     id: 'f4hwn-nr7y-fusion',
     family: 'f4hwn-nr7y',
     displayName: 'F4HWN Fusion (NR7Y fork) for UV-K1 / UV-K5 V3',
@@ -56,7 +77,10 @@ export const firmwareRegistry: ReadonlyArray<FirmwareEntry> = [
       '(channels 0x0000, names 0x4000, attrs 0x8000, calib 0xB000, ' +
       'F4HWN settings 0xA158). UI will show radio identity as ambiguous ' +
       '(uv-k1 / uv-k5-v3) until/unless we add a manual picker — the ' +
-      'profile is shared, so writes are still safe once self-test runs.',
+      'profile is shared, so writes are still safe once self-test runs. ' +
+      'The profile carries the v1.0-v1.1 CW block layout; this catch-all ' +
+      'also matches v1.2-v1.3.1, whose CW block keeps keyer mode in byte 4 ' +
+      'instead, so a keyer-mode write there is ignored by the firmware.',
   },
   {
     id: 'f4hwn-v1',

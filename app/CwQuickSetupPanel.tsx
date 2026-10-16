@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "./SessionContext";
-import { findProfile, resolveProfileById } from "./profileLookup";
+import { resolveProfileById } from "./profileLookup";
 import { EepromSnapshot } from "../src/backup/snapshot";
 import {
   parseConfig,
   applyConfig,
+  decodeField,
   requiredRegions,
   type BkgConfig,
   type ApplyResult,
+  type ConfigValue,
 } from "../src/config";
+import type { ResolvedBlockModule, ResolvedProfile } from "../src/schema/types";
 import { planWrites } from "../src/writer/planner";
 import { executeWritePlan } from "../src/writer/executor";
 import { plainExecResult } from "./ui";
@@ -45,7 +48,8 @@ function bandIndexForMHz(freqMhz: number): number {
 //   menu 2  → tx_power = Low3 (~250 mW)
 //   menu 12 → modulation = CW
 //   menu 71 → cw_keyer_mode = Iambic B
-//   menu 72 → user-entered WPM, validated client-side (10..40)
+//   menu 72 → user-entered WPM, validated client-side (range from the
+//             connected firmware's CW module: 10..40 on v1.0-v1.1, 10..45 on v1.4)
 //   menu 73 → cw_key_input_menu = "Port+Btn Iambic" (index 6, bitmap 0x16)
 //   F Lock  → f_lock = FCC HAM (US 2 m / 70 cm TX limits)
 // Channel: THE YARD at 144.025 MHz, channel slot 1.
@@ -91,17 +95,96 @@ const TX_POWER_OPTIONS = [
   "Mid",
   "High",
 ] as const;
-const KEYER_MODE_OPTIONS = ["Iambic A", "Iambic B"] as const;
-const KEY_INPUT_OPTIONS = [
-  "PTT HandKey",
-  "Port HandKey",
-  "Side Btn Iambic",
-  "Side Btn Iambic Reversed",
-  "Port Iambic",
-  "Port Iambic Reversed",
-  "Port+Btn Iambic",
-  "Port+Btn Iambic Reversed",
-] as const;
+
+// Modes that use the USB-C port as the paddle input (v1.4 on). Selecting
+// one gates the USB peripheral off and hands PA11/PA12 to the paddle
+// (App/app/cwhardware.c:616-626), which drops a USB-C programming link.
+const USB_PORT_KEY_INPUTS = new Set<string>([
+  "USB Port Iambic",
+  "USB Port Iambic Reversed",
+  "USB Port HandKey",
+]);
+
+/**
+ * Keyer-mode and key-input choices plus the WPM range, read from whichever
+ * nr7y_cw_settings layout the connected profile resolves (v1.0-v1.1 or
+ * v1.4), so the form can't offer a value the firmware won't load.
+ */
+interface CwFieldOptions {
+  module: ResolvedBlockModule;
+  keyerModes: ReadonlyArray<string>;
+  keyInputs: ReadonlyArray<string>;
+  wpmMin: number;
+  wpmMax: number;
+}
+
+function cwFieldOptions(resolved: ResolvedProfile): CwFieldOptions | null {
+  const mod = resolved.modules.find(
+    (m): m is ResolvedBlockModule => m.kind === "block" && m.id === "nr7y_cw_settings",
+  );
+  if (!mod) return null;
+  const typeOf = (id: string) => mod.fields.find((f) => f.id === id)?.type;
+  const keyer = typeOf("cw_keyer_mode");
+  const input = typeOf("cw_key_input_menu");
+  const wpm = typeOf("cw_key_wpm");
+  if (keyer?.kind !== "enum" || input?.kind !== "enum" || wpm?.kind !== "int") return null;
+  return {
+    module: mod,
+    keyerModes: keyer.values.map((v) => v.label),
+    keyInputs: input.values.map((v) => v.label),
+    wpmMin: wpm.min,
+    wpmMax: wpm.max,
+  };
+}
+
+/**
+ * Fills in fields the firmware needs alongside ours when the radio's CW
+ * block still holds bytes never written in the v1.4 layout (a radio
+ * upgraded from v1.0/v1.1 that hasn't saved settings since). Both repairs
+ * match what the CHIRP driver writes (chirp/nr7y.k1-k5v3.chirp.py:4432-4515
+ * at v1.4). Layouts without these fields pass through unchanged.
+ *
+ * - Byte 4: v1.4 ignores keyer mode unless the Farnsworth speed beside it
+ *   is Off or 5..44 (App/settings.c:425-433). 0xFF reads as 63, so the
+ *   keyer mode we write would be dropped. Write Farnsworth = Off.
+ * - Byte 2: clearing the validity marker on a blank byte would leave the
+ *   auto-spacing bit at 1 and turn it on. The firmware default is off.
+ */
+function withBlankByteRepairs(
+  cfg: BkgConfig,
+  cwModule: ResolvedBlockModule,
+  current: EepromSnapshot,
+): BkgConfig {
+  const bytes = current.read(cwModule.baseOffset, cwModule.size);
+  const fieldOf = (id: string) => cwModule.fields.find((f) => f.id === id);
+  const extra: Record<string, ConfigValue> = {};
+
+  const farnsworth = fieldOf("cw_farnsworth_wpm");
+  if (
+    farnsworth?.type.kind === "enum" &&
+    !farnsworth.type.values.some((v) => v.value === decodeField(farnsworth, bytes).raw)
+  ) {
+    extra.cw_farnsworth_wpm = "Off";
+  }
+
+  const byte2Invalid = fieldOf("cw_byte2_invalid");
+  if (
+    fieldOf("cw_farnsworth_auto") &&
+    byte2Invalid &&
+    decodeField(byte2Invalid, bytes).raw === 1
+  ) {
+    extra.cw_farnsworth_auto = false;
+  }
+
+  if (Object.keys(extra).length === 0) return cfg;
+  return {
+    ...cfg,
+    settings: {
+      ...cfg.settings,
+      nr7y_cw_settings: { ...cfg.settings?.["nr7y_cw_settings"], ...extra },
+    },
+  };
+}
 
 type Stage =
   | { kind: "idle" }
@@ -122,24 +205,32 @@ export function CwQuickSetupPanel() {
       ? state.result.firmware.entry.profileId
       : undefined;
 
-  // Only meaningful for NR7Y — that's where nr7y_cw_settings lives.
-  if (profileId !== "uv-k1-f4hwn-nr7y") return null;
-
-  const profile = findProfile(profileId);
+  if (!profileId) return null;
   const resolved = resolveProfileById(profileId);
-  if (!profile || !resolved) return null;
+  // Only meaningful where nr7y_cw_settings lives — the NR7Y profiles.
+  const cw = resolved ? cwFieldOptions(resolved) : null;
+  if (!resolved || !cw) return null;
 
-  return <CwQuickSetupInner session={state.session} profileId={profileId} resolved={resolved} />;
+  return (
+    <CwQuickSetupInner
+      session={state.session}
+      profileId={profileId}
+      resolved={resolved}
+      cw={cw}
+    />
+  );
 }
 
 function CwQuickSetupInner({
   session,
   profileId,
   resolved,
+  cw,
 }: {
   session: Session;
   profileId: string;
-  resolved: ReturnType<typeof resolveProfileById> & object;
+  resolved: ResolvedProfile;
+  cw: CwFieldOptions;
 }) {
   const [channelIndex, setChannelIndex] = useState<number>(DEFAULT_CHANNEL_INDEX);
   const [channelName, setChannelName] = useState<string>(DEFAULT_CHANNEL_NAME);
@@ -167,11 +258,11 @@ function CwQuickSetupInner({
       return "Frequency must be between 18 and 1300 MHz.";
     }
     const wpmInt = parseInt(wpm, 10);
-    if (!Number.isInteger(wpmInt) || wpmInt < 10 || wpmInt > 40) {
-      return "Speed must be between 10 and 40 WPM.";
+    if (!Number.isInteger(wpmInt) || wpmInt < cw.wpmMin || wpmInt > cw.wpmMax) {
+      return `Speed must be between ${cw.wpmMin} and ${cw.wpmMax} WPM.`;
     }
     return null;
-  }, [channelIndex, channelName, freqMhz, wpm]);
+  }, [channelIndex, channelName, freqMhz, wpm, cw.wpmMin, cw.wpmMax]);
 
   // Synthesised config (also displayed for transparency / hand-editing).
   const cfg = useMemo<BkgConfig | null>(() => {
@@ -185,7 +276,7 @@ function CwQuickSetupInner({
         "global nr7y_cw_settings block (keyer mode, WPM, key input, " +
         "break-in, byte-2 validity marker), and the F-Lock TX frequency " +
         "lock (freq_lock_settings).",
-      appliesTo: { profileIds: ["uv-k1-f4hwn-nr7y"] },
+      appliesTo: { profileIds: [profileId] },
       channels: [
         {
           index: channelIndex,
@@ -237,7 +328,7 @@ function CwQuickSetupInner({
         },
       },
     };
-  }, [formError, channelIndex, channelName, freqMhz, txPower, keyerMode, wpm, keyInput, fLock]);
+  }, [formError, profileId, channelIndex, channelName, freqMhz, txPower, keyerMode, wpm, keyInput, fLock]);
 
   const cfgJson = useMemo(() => (cfg ? JSON.stringify(cfg, null, 2) : ""), [cfg]);
 
@@ -273,9 +364,10 @@ function CwQuickSetupInner({
         done += r.length;
         setStage({ kind: "reading", done, total: totalBytes, current: r.label });
       }
-      const applied = applyConfig(cfg, resolved, current);
+      const effective = withBlankByteRepairs(cfg, cw.module, current);
+      const applied = applyConfig(effective, resolved, current);
       const plan = planWrites(resolved, current, applied.target, applied.fieldChanges);
-      setStage({ kind: "previewed", cfg, applied, plan });
+      setStage({ kind: "previewed", cfg: effective, applied, plan });
     } catch (err) {
       setStage({
         kind: "read-error",
@@ -322,9 +414,9 @@ function CwQuickSetupInner({
       <h2 style={{ margin: 0, fontSize: 18 }}>CW quick setup</h2>
       <p style={{ color: "var(--muted)", marginTop: 4, fontSize: 13 }}>
         Sets up a CW (Morse) channel, your keyer, and your transmit band
-        limits in one go. The menu numbers below match the menu on your radio,
-        so you can find the same settings there later. Adjust anything,
-        preview, then save.
+        limits in one go. The names in brackets are the radio&rsquo;s own
+        menu names, so you can find the same settings there later. Adjust
+        anything, preview, then save.
       </p>
 
       <FieldGrid>
@@ -353,7 +445,7 @@ function CwQuickSetupInner({
           hint="Simplex (receive and transmit on the same frequency). Default 144.025."
         />
         <SelectField
-          label="Menu 2 — TX power"
+          label="TX power (Power)"
           value={txPower}
           options={[...TX_POWER_OPTIONS]}
           onChange={setTxPower}
@@ -361,26 +453,26 @@ function CwQuickSetupInner({
           hint="Transmit power. Low3 ≈ 250 mW; Mid ≈ 2 W."
         />
         <SelectField
-          label="Menu 71 — Keyer mode"
+          label="Keyer mode (CWkmod)"
           value={keyerMode}
-          options={[...KEYER_MODE_OPTIONS]}
+          options={cw.keyerModes}
           onChange={setKeyerMode}
           disabled={busy}
           hint="Iambic B is the common default."
         />
         <NumberField
-          label="Menu 72 — Keyer speed (WPM)"
+          label="Keyer speed, WPM (CWwpm)"
           value={parseInt(wpm, 10)}
-          min={10}
-          max={40}
+          min={cw.wpmMin}
+          max={cw.wpmMax}
           onChange={(n) => setWpm(String(n))}
           disabled={busy}
-          hint="10..40 inclusive."
+          hint={`${cw.wpmMin}..${cw.wpmMax} inclusive.`}
         />
         <SelectField
-          label="Menu 73 — Key input"
+          label="Key input (CWkin)"
           value={keyInput}
-          options={[...KEY_INPUT_OPTIONS]}
+          options={cw.keyInputs}
           onChange={setKeyInput}
           disabled={busy}
           hint="Default is PTT HandKey (safe with the programming cable). Port-using modes are listed below."
@@ -404,6 +496,16 @@ function CwQuickSetupInner({
           plugged into. If you save it now, the radio mistakes the cable for a
           stuck key on the next restart, briefly shows a warning, and undoes
           the setting — and during that moment this tool can&rsquo;t reconnect.
+          Set this one on the radio itself once your paddle is plugged in.
+        </Banner>
+      ) : null}
+
+      {USB_PORT_KEY_INPUTS.has(keyInput) ? (
+        <Banner kind="warn">
+          <strong>This one switches off USB.</strong> &ldquo;{keyInput}&rdquo;
+          turns the radio&rsquo;s USB-C port into the paddle input, and the
+          radio shuts down USB to do it as soon as it loads the setting. If
+          you&rsquo;re connected over USB-C, saving it drops this connection.
           Set this one on the radio itself once your paddle is plugged in.
         </Banner>
       ) : null}

@@ -5,6 +5,7 @@ import {
   nr7yResolverModules,
   freqLockResolverModules,
 } from './uv-k1-f4hwn-nr7y';
+import { uvK1F4hwnNr7yV14 } from './uv-k1-f4hwn-nr7y-v14';
 import { uvK1Stock } from './uv-k1-stock';
 import { uvK5Ijv, ijvResolverModules } from './uv-k5-ijv';
 import type { Profile, ModuleId, BlockModuleDef } from '../types';
@@ -12,6 +13,7 @@ import type { Profile, ModuleId, BlockModuleDef } from '../types';
 export const profiles: ReadonlyArray<Profile> = [
   uvK5V1F4hwn,
   uvK1F4hwnNr7y,
+  uvK1F4hwnNr7yV14,
   uvK1Stock,
   uvK5Ijv,
 ];
@@ -33,4 +35,4 @@ export const moduleRegistry: ReadonlyMap<ModuleId, BlockModuleDef> = new Map([
 // registered above; listed alongside the v3 profile for clarity.
 void v3ResolverModules;
 
-export { uvK5V1F4hwn, uvK1F4hwnNr7y, uvK1Stock, uvK5Ijv };
+export { uvK5V1F4hwn, uvK1F4hwnNr7y, uvK1F4hwnNr7yV14, uvK1Stock, uvK5Ijv };
